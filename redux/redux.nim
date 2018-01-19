@@ -34,30 +34,41 @@ proc dispatch*(store: Store, action: Action) =
   for subscriber in store.subscribers:
     subscriber(store.state, action)
 
-macro dispatchAction*(storename: Store, actiontypename: untyped): untyped =
+macro dispatchAction*(storename: Store, statements: untyped): untyped =
   result = newStmtList()
 
-  var varSection = newNimNode(nnkVarSection)
-  var identDefs = newNimNode(nnkIdentDefs)
-  var identNode1 = newIdentNode("action")
-  identDefs.add(identNode1)
-  var emptyNode = newNimNode(nnkEmpty)
-  identDefs.add(emptyNode)
+  #echo statements.treeRepr()
+  
+  var actiontypename = ""
+  
+  if statements.len == 0:
+    actiontypename = $statements
+  elif statements[0].kind == nnkIdent:
+    actiontypename = $statements[0]
+  elif statements[0].kind == nnkCall:
+    actiontypename = $statements[0][0]
+  elif statements[0].kind == nnkObjConstr:
+    actiontypename = $statements[0][0]
+
   var objConstr = newNimNode(nnkObjConstr)
-  var identNode2 = newIdentNode($actiontypename)
-  objConstr.add(identNode2)
+  objConstr.add(newIdentNode(actiontypename))
   var exprColonExpr = newNimNode(nnkExprColonExpr)
   exprColonExpr.add(newIdentNode("Name"))
-  exprColonExpr.add(newStrLitNode($actiontypename))
+  exprColonExpr.add(newStrLitNode(actiontypename))
   objConstr.add(exprColonExpr)
-  identDefs.add(objConstr)
-  varSection.add(identDefs)
-  result.add(varSection)
+  
+  # Add additional parameters
+  if statements.len > 0:
+    for i in 1..statements.len - 1:
+      let statement = statements[i]
+      objConstr.add(statement)
 
   var callNode = newNimNode(nnkCall)
   var dotExprNode = newNimNode(nnkDotExpr)
   dotExprNode.add(newIdentNode($storename))
   dotExprNode.add(newIdentNode("dispatch"))
   callNode.add(dotExprNode)
-  callNode.add(newIdentNode("action"))
+  callNode.add(objConstr)
   result.add(callNode)
+
+  #echo result.treeRepr()
